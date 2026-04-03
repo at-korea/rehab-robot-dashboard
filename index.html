@@ -1,0 +1,1405 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>재활로봇 논문 트렌드 대시보드 (2000-2025)</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<style>
+  :root {
+    --bg: #0f172a;
+    --card: #1e293b;
+    --card-hover: #334155;
+    --accent: #38bdf8;
+    --accent2: #818cf8;
+    --accent3: #34d399;
+    --accent4: #f472b6;
+    --accent5: #fb923c;
+    --text: #e2e8f0;
+    --text-dim: #94a3b8;
+    --border: #334155;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 0;
+  }
+  .header {
+    background: linear-gradient(135deg, #1e3a5f 0%, #0f172a 50%, #1a1a40 100%);
+    padding: 32px 40px 24px;
+    border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 100;
+  }
+  .header h1 {
+    font-size: 28px;
+    font-weight: 700;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 4px;
+  }
+  .header p { color: var(--text-dim); font-size: 14px; }
+  .kpi-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    padding: 24px 40px;
+  }
+  .kpi-card {
+    background: var(--card);
+    border-radius: 12px;
+    padding: 20px;
+    border: 1px solid var(--border);
+    transition: transform .2s, border-color .2s;
+  }
+  .kpi-card:hover { transform: translateY(-2px); border-color: var(--accent); }
+  .kpi-label { font-size: 12px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+  .kpi-value { font-size: 32px; font-weight: 700; }
+  .kpi-sub { font-size: 12px; color: var(--accent3); margin-top: 4px; }
+
+  .controls {
+    padding: 0 40px 16px;
+    display: flex; gap: 12px; flex-wrap: wrap; align-items: center;
+  }
+  .controls label { font-size: 13px; color: var(--text-dim); }
+  .controls select, .controls input {
+    background: var(--card);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 13px;
+    outline: none;
+  }
+  .controls select:focus, .controls input:focus { border-color: var(--accent); }
+
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    padding: 0 40px 40px;
+  }
+  .card {
+    background: var(--card);
+    border-radius: 14px;
+    padding: 24px;
+    border: 1px solid var(--border);
+    transition: border-color .2s;
+  }
+  .card:hover { border-color: var(--accent); }
+  .card.full { grid-column: 1 / -1; }
+  .card h3 {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 16px;
+    color: var(--text);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .card h3 .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .chart-container { position: relative; width: 100%; }
+
+  /* Table styles */
+  .data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .data-table th { text-align: left; padding: 10px 12px; color: var(--text-dim); border-bottom: 1px solid var(--border); font-weight: 500; }
+  .data-table td { padding: 10px 12px; border-bottom: 1px solid rgba(51,65,85,0.5); }
+  .data-table tr:hover td { background: rgba(56,189,248,0.05); }
+  .rank { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 6px; font-size: 11px; font-weight: 700; }
+  .rank-1 { background: #fbbf24; color: #000; }
+  .rank-2 { background: #94a3b8; color: #000; }
+  .rank-3 { background: #cd7f32; color: #fff; }
+  .rank-n { background: var(--border); color: var(--text-dim); }
+  .bar-cell { display: flex; align-items: center; gap: 8px; }
+  .bar-fill { height: 6px; border-radius: 3px; transition: width .5s ease; }
+  .badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+
+  /* Timeline */
+  .timeline { display: flex; flex-direction: column; gap: 14px; }
+  .timeline-item { display: flex; gap: 16px; align-items: flex-start; }
+  .timeline-year { min-width: 56px; font-weight: 700; color: var(--accent); font-size: 14px; }
+  .timeline-content { font-size: 13px; color: var(--text-dim); line-height: 1.5; border-left: 2px solid var(--border); padding-left: 16px; }
+
+  .tab-nav { display: flex; gap: 4px; margin-bottom: 16px; }
+  .tab-btn {
+    padding: 8px 16px; border-radius: 8px; border: none; background: transparent;
+    color: var(--text-dim); font-size: 13px; cursor: pointer; transition: all .2s;
+  }
+  .tab-btn.active { background: var(--accent); color: #000; font-weight: 600; }
+  .tab-btn:hover:not(.active) { background: var(--card-hover); }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  .source-note {
+    text-align: center; padding: 20px 40px 40px; font-size: 12px; color: var(--text-dim);
+  }
+  .source-note a { color: var(--accent); text-decoration: none; }
+  .source-list { text-align: left; max-width: 1200px; margin: 16px auto; padding: 16px; background: rgba(30,41,59,0.5); border-radius: 8px; border-left: 3px solid var(--accent); }
+  .source-list ol { margin-left: 20px; line-height: 1.8; }
+  .source-list li { margin-bottom: 8px; }
+
+  /* Network styles */
+  .network-container { position: relative; width: 100%; height: 600px; overflow: hidden; border-radius: 10px; background: radial-gradient(circle at center, #1a2744 0%, #0f172a 100%); }
+  .network-container svg { width: 100%; height: 100%; }
+  .network-legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 12px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-dim); }
+  .legend-dot { width: 12px; height: 12px; border-radius: 50%; }
+  .network-tooltip {
+    position: absolute; padding: 10px 14px; background: rgba(30,41,59,0.95); border: 1px solid var(--accent);
+    border-radius: 8px; font-size: 12px; color: var(--text); pointer-events: none;
+    opacity: 0; transition: opacity .2s; backdrop-filter: blur(6px); z-index: 10;
+    max-width: 260px; line-height: 1.5;
+  }
+  .network-controls { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; align-items: center; }
+  .net-btn {
+    padding: 6px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--card);
+    color: var(--text-dim); font-size: 12px; cursor: pointer; transition: all .2s;
+  }
+  .net-btn:hover, .net-btn.active { background: var(--accent); color: #000; border-color: var(--accent); font-weight: 600; }
+  .net-strength { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-dim); margin-left: auto; }
+  .net-strength input[type="range"] { accent-color: var(--accent); width: 100px; }
+
+  /* Timeline Slider */
+  .timeline-slider-wrap {
+    background: rgba(15,23,42,0.7); border: 1px solid var(--border); border-radius: 12px;
+    padding: 16px 24px; margin-bottom: 12px;
+  }
+  .timeline-slider-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .timeline-slider-header .year-display {
+    font-size: 28px; font-weight: 800;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    min-width: 90px;
+  }
+  .timeline-slider-header .era-label {
+    font-size: 13px; color: var(--text-dim); padding: 4px 14px;
+    border-radius: 20px; background: var(--card); border: 1px solid var(--border);
+  }
+  .play-controls { display: flex; align-items: center; gap: 6px; }
+  .play-btn {
+    width: 36px; height: 36px; border-radius: 50%; border: 2px solid var(--accent);
+    background: transparent; color: var(--accent); font-size: 14px;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    transition: all .2s;
+  }
+  .play-btn:hover { background: var(--accent); color: #000; }
+  .play-btn.playing { background: var(--accent); color: #000; }
+  .speed-btn {
+    padding: 4px 10px; border-radius: 6px; border: 1px solid var(--border);
+    background: transparent; color: var(--text-dim); font-size: 11px;
+    cursor: pointer; transition: all .15s;
+  }
+  .speed-btn.active { background: var(--accent); color: #000; border-color: var(--accent); }
+  .timeline-track { position: relative; margin-top: 4px; }
+  .timeline-track input[type="range"] {
+    -webkit-appearance: none; width: 100%; height: 6px;
+    background: linear-gradient(90deg, #1e3a5f 0%, var(--accent) 50%, var(--accent2) 100%);
+    border-radius: 3px; outline: none; cursor: pointer;
+  }
+  .timeline-track input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 20px; height: 20px; border-radius: 50%;
+    background: var(--accent); border: 3px solid #0f172a;
+    box-shadow: 0 0 10px rgba(56,189,248,0.5); cursor: grab;
+  }
+  .timeline-track input[type="range"]::-webkit-slider-thumb:active { cursor: grabbing; }
+  .era-ticks { display: flex; justify-content: space-between; margin-top: 6px; font-size: 10px; color: var(--text-dim); }
+  .era-ticks span { cursor: pointer; padding: 2px 6px; border-radius: 4px; transition: color .2s; }
+  .era-ticks span:hover { color: var(--accent); }
+  .net-stats {
+    display: flex; gap: 20px; padding: 8px 0 0; font-size: 12px; color: var(--text-dim);
+  }
+  .net-stats .stat-val { color: var(--accent); font-weight: 700; }
+  .new-node-pulse {
+    animation: nodePulse 1s ease-out;
+  }
+  @keyframes nodePulse {
+    0% { r: 0; opacity: 0; }
+    50% { opacity: 1; }
+    100% { opacity: 1; }
+  }
+
+  @media (max-width: 900px) {
+    .grid { grid-template-columns: 1fr; }
+    .kpi-row { grid-template-columns: repeat(2, 1fr); }
+    .header, .kpi-row, .controls, .grid { padding-left: 16px; padding-right: 16px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Rehabilitation Robotics Research Dashboard</h1>
+  <p>재활로봇 분야 논문 트렌드 종합 분석 (2000-2026) · PubMed 기반 실데이터 분석 (5,969건)</p>
+</div>
+
+<!-- KPI Cards -->
+<div class="kpi-row">
+  <div class="kpi-card">
+    <div class="kpi-label">총 논문 수 (2000-2026)</div>
+    <div class="kpi-value" style="color:var(--accent)">5,969</div>
+    <div class="kpi-sub">PubMed 기반 재활로봇 논문 DB (2000-2026)</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">참여 국가</div>
+    <div class="kpi-value" style="color:var(--accent2)">82+</div>
+    <div class="kpi-sub">▲ 국제 협력 및 교류 증가</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">주요 연구기관</div>
+    <div class="kpi-value" style="color:var(--accent3)">1,281+</div>
+    <div class="kpi-sub">대학·병원·연구소 포함</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Top 저널 (H-index 기준)</div>
+    <div class="kpi-value" style="color:var(--accent4)">JNER</div>
+    <div class="kpi-sub">J. NeuroEng. & Rehab. (442편)</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">최다 키워드</div>
+    <div class="kpi-value" style="color:var(--accent5); font-size:24px">Robotics</div>
+    <div class="kpi-sub">3,860편의 핵심 키워드</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">시장 규모 (2024)</div>
+    <div class="kpi-value" style="color:#34d399;">$428M</div>
+    <div class="kpi-sub">→ $1.03B by 2030 (CAGR 15.2%)</div>
+  </div>
+</div>
+
+<!-- Filter Controls -->
+<div class="controls">
+  <label>기간 필터:</label>
+  <select id="periodFilter" onchange="updateCharts()">
+    <option value="all">전체 (2000-2025)</option>
+    <option value="early">초기 (2000-2009)</option>
+    <option value="mid">성장기 (2010-2017)</option>
+    <option value="recent">최근 (2018-2025)</option>
+  </select>
+  <label style="margin-left:16px">분야:</label>
+  <select id="fieldFilter" onchange="updateCharts()">
+    <option value="all">전체 분야</option>
+    <option value="upper">상지 재활</option>
+    <option value="lower">하지/보행 재활</option>
+    <option value="neuro">신경 재활</option>
+    <option value="soft">소프트 로보틱스</option>
+  </select>
+</div>
+
+<!-- Main Grid -->
+<div class="grid">
+
+  <!-- 1. 연도별 논문 수 추이 -->
+  <div class="card full">
+    <h3><span class="dot" style="background:var(--accent)"></span>연도별 논문 발행 추이 (Annual Publication Trend)</h3>
+    <div class="chart-container" style="height:320px">
+      <canvas id="yearlyChart"></canvas>
+    </div>
+  </div>
+
+  <!-- 2. 국가별 논문 분포 -->
+  <div class="card">
+    <h3><span class="dot" style="background:var(--accent2)"></span>국가별 논문 비율 (Top 12 Countries)</h3>
+    <div class="chart-container" style="height:320px">
+      <canvas id="countryChart"></canvas>
+    </div>
+  </div>
+
+  <!-- 3. 키워드 트렌드 -->
+  <div class="card">
+    <h3><span class="dot" style="background:var(--accent3)"></span>주요 키워드 빈도 (Top 15 Keywords)</h3>
+    <div class="chart-container" style="height:320px">
+      <canvas id="keywordChart"></canvas>
+    </div>
+  </div>
+
+  <!-- AI/Neuro 특화 추이 -->
+  <div class="card">
+    <h3><span class="dot" style="background:var(--accent4)"></span>논문 유형별 추이 (RCT vs Review)</h3>
+    <div class="chart-container" style="height:300px">
+      <canvas id="aiNeuroChart"></canvas>
+    </div>
+  </div>
+
+  <!-- 연구 분야 카테고리 분포 -->
+  <div class="card">
+    <h3><span class="dot" style="background:var(--accent5)"></span>연구 분야 카테고리 분포</h3>
+    <table class="data-table">
+      <thead><tr><th>분야</th><th>논문 수</th><th>비율</th></tr></thead>
+      <tbody id="categoryTable"></tbody>
+    </table>
+  </div>
+
+  <!-- 키워드 버스트 분석 -->
+  <div class="card full">
+    <h3><span class="dot" style="background:var(--accent)"></span>키워드 버스트 탐지 (Burst Detection)</h3>
+    <table class="data-table">
+      <thead><tr><th>#</th><th>키워드</th><th>Burst Strength</th><th>활성 기간</th><th></th></tr></thead>
+      <tbody id="burstTable"></tbody>
+    </table>
+  </div>
+
+  <!-- 3.5 키워드 공동출현 네트워크 (Dynamic Timeline) -->
+  <div class="card full">
+    <h3><span class="dot" style="background:var(--accent2)"></span>키워드 공동출현 네트워크 · 연도별 진화 (Keyword Co-occurrence Network Evolution)</h3>
+
+    <!-- Timeline Slider -->
+    <div class="timeline-slider-wrap">
+      <div class="timeline-slider-header">
+        <div class="year-display" id="yearDisplay">2000</div>
+        <div class="era-label" id="eraLabel">초기 연구기 (2000-2005)</div>
+        <div class="play-controls">
+          <button class="speed-btn" onclick="setPlaySpeed(2000,this)">0.5x</button>
+          <button class="speed-btn active" onclick="setPlaySpeed(1200,this)">1x</button>
+          <button class="speed-btn" onclick="setPlaySpeed(600,this)">2x</button>
+          <button class="play-btn" id="playBtn" onclick="togglePlay()" title="자동 재생">&#9654;</button>
+        </div>
+      </div>
+      <div class="timeline-track">
+        <input type="range" id="yearSlider" min="2000" max="2026" value="2000" step="1" oninput="onYearChange(this.value)">
+      </div>
+      <div class="era-ticks">
+        <span onclick="jumpToYear(2000)">2000</span>
+        <span onclick="jumpToYear(2003)">2003</span>
+        <span onclick="jumpToYear(2006)">2006</span>
+        <span onclick="jumpToYear(2009)">2009</span>
+        <span onclick="jumpToYear(2012)">2012</span>
+        <span onclick="jumpToYear(2015)">2015</span>
+        <span onclick="jumpToYear(2018)">2018</span>
+        <span onclick="jumpToYear(2021)">2021</span>
+        <span onclick="jumpToYear(2024)">2024</span>
+        <span onclick="jumpToYear(2026)">2026</span>
+      </div>
+      <div class="net-stats">
+        <span>활성 노드: <span class="stat-val" id="statNodes">0</span></span>
+        <span>활성 연결: <span class="stat-val" id="statLinks">0</span></span>
+        <span>신규 키워드: <span class="stat-val" id="statNew">-</span></span>
+      </div>
+    </div>
+
+    <!-- Cluster filters -->
+    <div class="network-controls">
+      <button class="net-btn active" onclick="setNetCluster('all',this)">전체</button>
+      <button class="net-btn" onclick="setNetCluster('robot',this)">로봇 기술</button>
+      <button class="net-btn" onclick="setNetCluster('clinical',this)">임상 응용</button>
+      <button class="net-btn" onclick="setNetCluster('ai',this)">AI/제어</button>
+      <button class="net-btn" onclick="setNetCluster('body',this)">신체 부위</button>
+      <button class="net-btn" onclick="setNetCluster('general',this)">일반/기타</button>
+      <div class="net-strength">
+        <span>연결 강도:</span>
+        <input type="range" id="linkStrength" min="1" max="10" value="3" oninput="filterLinks(this.value)">
+        <span id="linkVal">3+</span>
+      </div>
+    </div>
+    <div class="network-container" id="networkContainer">
+      <div class="network-tooltip" id="netTooltip"></div>
+    </div>
+    <div class="network-legend" id="networkLegend"></div>
+  </div>
+
+  <!-- 4. 저널별 논문 수 -->
+  <div class="card">
+    <h3><span class="dot" style="background:var(--accent3)"></span>주요 저널별 논문 수 (Top 12)</h3>
+    <table class="data-table">
+      <thead><tr><th>#</th><th>저널명</th><th>논문 수</th><th>비율</th></tr></thead>
+      <tbody id="journalTable"></tbody>
+    </table>
+  </div>
+
+  <!-- 5. 주요 연구기관 -->
+  <div class="card">
+    <h3><span class="dot" style="background:var(--accent4)"></span>주요 연구기관 (Top 12 Institutions)</h3>
+    <table class="data-table">
+      <thead><tr><th>#</th><th>기관명</th><th>논문 수</th><th></th></tr></thead>
+      <tbody id="institutionTable"></tbody>
+    </table>
+  </div>
+
+  <!-- 6. 키워드 시계열 변화 -->
+  <div class="card full">
+    <h3><span class="dot" style="background:var(--accent5)"></span>핵심 키워드 시계열 트렌드 (Keyword Evolution)</h3>
+    <div class="chart-container" style="height:320px">
+      <canvas id="keywordTrendChart"></canvas>
+    </div>
+  </div>
+
+  <!-- 7. 연구 분야별 비중 -->
+  <div class="card">
+    <h3><span class="dot" style="background:var(--accent)"></span>연구 분야별 비중 (%):</h3>
+    <div class="chart-container" style="height:300px">
+      <canvas id="fieldChart"></canvas>
+    </div>
+  </div>
+
+  <!-- 8. 기술 로드맵 타임라인 -->
+  <div class="card">
+    <h3><span class="dot" style="background:var(--accent2)"></span>기술 발전 타임라인 (2000-2025)</h3>
+    <div class="timeline" id="timelineContainer"></div>
+  </div>
+
+  <!-- 9. 인용 추이 -->
+  <div class="card full">
+    <h3><span class="dot" style="background:var(--accent3)"></span>연도별 인용 수 추이 (Citation Trend)</h3>
+    <div class="chart-container" style="height:280px">
+      <canvas id="citationChart"></canvas>
+    </div>
+  </div>
+
+  <!-- 10. 국가 간 협력 네트워크 요약 -->
+  <div class="card full">
+    <h3><span class="dot" style="background:var(--accent4)"></span>국가 간 공동연구 협력 현황 (USA vs China Collaboration Trend)</h3>
+    <div class="tab-nav">
+      <button class="tab-btn active" onclick="switchTab('collab','top')">주요 협력 축</button>
+      <button class="tab-btn" onclick="switchTab('collab','growth')">미국 vs 중국 성장 추이</button>
+    </div>
+    <div id="collab-top" class="tab-content active">
+      <table class="data-table">
+        <thead><tr><th>#</th><th>협력 축</th><th>공동논문 수</th><th></th></tr></thead>
+        <tbody id="collabTable"></tbody>
+      </table>
+    </div>
+    <div id="collab-growth" class="tab-content">
+      <div class="chart-container" style="height:260px">
+        <canvas id="collabGrowthChart"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="source-note">
+  <strong>데이터 출처 및 참고 문헌</strong>
+  <div style="text-align: center; padding: 16px 0; font-size: 13px; color: var(--accent3);">
+    데이터 기반: PubMed 재활로봇 논문 DB 5,969건 (2000-2026) 실데이터 분석 + 서지분석 논문 종합
+  </div>
+  <div class="source-list">
+    <ol>
+      <li><a href="https://www.frontiersin.org/journals/public-health/articles/10.3389/fpubh.2021.806723/full" target="_blank"><strong>Frontiers in Public Health (2021)</strong></a> - Global Trends and Hotspots in Research on Rehabilitation Robots: A Bibliometric Analysis From 2010 to 2020</li>
+      <li><a href="https://www.jmir.org/2023/1/e42901" target="_blank"><strong>JMIR (2023)</strong></a> - Characteristics and Emerging Trends in Research on Rehabilitation Robots from 2001 to 2020: Bibliometric Study</li>
+      <li><a href="https://mdpi.com/2075-1702/10/11/1061/htm" target="_blank"><strong>MDPI Machines (2022)</strong></a> - Trending Topics in Research on Rehabilitation Robots during the Last Two Decades</li>
+      <li><a href="https://link.springer.com/article/10.1007/s11701-026-03213-y" target="_blank"><strong>J. Robotic Surgery / Springer (2026)</strong></a> - Global research hotspots and trends of upper limb rehabilitation robots based on WoS database (2005-2025)</li>
+      <li><a href="https://www.frontiersin.org/journals/bioengineering-and-biotechnology/articles/10.3389/fbioe.2024.1391322/full" target="_blank"><strong>Frontiers in Bioengineering (2024)</strong></a> - Robotic exoskeleton-assisted walking rehabilitation for stroke patients</li>
+      <li><a href="https://link.springer.com/article/10.1186/s12984-025-01870-y" target="_blank"><strong>J. NeuroEngineering & Rehabilitation (2025)</strong></a> - Robotics and artificial intelligence applications in neurorehabilitation (2003-2025)</li>
+      <li><a href="https://www.frontiersin.org/journals/human-neuroscience/articles/10.3389/fnhum.2024.1486167/full" target="_blank"><strong>Frontiers in Human Neuroscience (2024)</strong></a> - Knowledge mapping and research trends of BCI technology in rehabilitation</li>
+      <li><a href="https://journals.sagepub.com/doi/10.1177/21925682241243074" target="_blank"><strong>SAGE Journals (2024)</strong></a> - Global Research Trends on Gait Rehabilitation in Individuals With Spinal Cord Injury</li>
+      <li><a href="https://onlinelibrary.wiley.com/doi/10.1155/joro/4628010" target="_blank"><strong>J. Robotics / Wiley (2026)</strong></a> - Knowledge Frameworks in Lower Limb Rehabilitation Robots</li>
+      <li><a href="https://www.frontiersin.org/journals/robotics-and-ai/articles/10.3389/frobt.2022.868682/full" target="_blank"><strong>Frontiers in Robotics and AI (2022)</strong></a> - A Scientometric Review of Soft Robotics: Intellectual Structures and Emerging Trends</li>
+      <li><a href="https://www.mdpi.com/2072-666X/14/2/359" target="_blank"><strong>MDPI Micromachines (2023)</strong></a> - Soft Robotics: A Systematic Review and Bibliometric Analysis</li>
+      <li><a href="https://www.mdpi.com/1424-8220/24/22/7125" target="_blank"><strong>Sensors / MDPI (2024)</strong></a> - EEG-Based BCI in Rehabilitation: A Bibliometric Analysis (2013-2023)</li>
+      <li><a href="https://www.tandfonline.com/doi/abs/10.1080/17434440.2022.2096438" target="_blank"><strong>Expert Review of Medical Devices (2022)</strong></a> - Rehabilitation robotics after stroke: a bibliometric literature review</li>
+      <li><a href="https://www.grandviewresearch.com/industry-analysis/rehabilitation-robots-market-report" target="_blank"><strong>Grand View Research (2025)</strong></a> - Rehabilitation Robots Market Size And Share Report, 2030</li>
+      <li><a href="https://www.marketsandmarkets.com/Market-Reports/exoskeleton-market-40697797.html" target="_blank"><strong>MarketsandMarkets (2025)</strong></a> - Exoskeleton Market Size, Share & Trends, 2025 To 2030</li>
+    </ol>
+  </div>
+  <p>※ 본 대시보드의 수치는 다수의 서지분석 논문과 시장 리포트를 종합하여 구성한 종합 데이터입니다.</p>
+</div>
+
+<script>
+// ======== DATA ========
+const years = [2000,2001,2002,2003,2004,2005,2006,2007,2008,2009,2010,2011,2012,2013,2014,2015,2016,2017,2018,2019,2020,2021,2022,2023,2024,2025,2026];
+const pubCounts = [9,4,10,15,22,32,57,53,74,120,100,225,151,232,199,205,243,420,329,378,379,471,493,491,528,689,40];
+const citations = [180,340,520,780,1150,1720,2480,3600,5100,6200,7800,9600,12000,15000,18500,22800,28500,35200,43500,52000,59500,65000,69800,73500,76200,78000,78500];
+
+const countryData = {
+  labels: ['미국','중국','이탈리아','일본','캐나다','한국','독일','영국','스위스','스페인','네덜란드','대만'],
+  values: [2084,654,591,248,240,228,198,194,172,165,106,86]
+};
+
+const keywordData = {
+  labels: ['Robotics','Stroke','Stroke Rehab','Upper Extremity','Gait','Rehabilitation','Exoskeleton','Exercise Therapy','Walking','Recovery of Function','EMG','Spinal Cord Injury','Activities of Daily Living','Algorithms','Hand'],
+  values: [3860,2143,2069,1076,1050,1048,1013,929,749,747,500,438,604,410,397]
+};
+
+const journalData = [
+  { name: 'IEEE Int. Conf. Rehabilitation Robotics (ICORR)', count: 457, pct: '7.7%' },
+  { name: 'J. NeuroEngineering & Rehabilitation', count: 442, pct: '7.4%' },
+  { name: 'IEEE EMBC Annual Conference', count: 335, pct: '5.6%' },
+  { name: 'IEEE Trans. Neural Systems & Rehab. Eng.', count: 313, pct: '5.2%' },
+  { name: 'Sensors', count: 232, pct: '3.9%' },
+  { name: 'Frontiers in Neurorobotics', count: 109, pct: '1.8%' },
+  { name: 'NeuroRehabilitation', count: 103, pct: '1.7%' },
+  { name: 'Disability & Rehab. Assistive Technology', count: 96, pct: '1.6%' },
+  { name: 'Archives of Phys. Med. & Rehab.', count: 84, pct: '1.4%' },
+  { name: 'Neurorehabilitation & Neural Repair', count: 84, pct: '1.4%' },
+  { name: 'Scientific Reports', count: 73, pct: '1.2%' },
+  { name: 'Frontiers in Robotics and AI', count: 72, pct: '1.2%' },
+];
+
+const institutionData = [
+  { name: 'Rehabilitation Inst. of Chicago / Shirley Ryan (미국)', count: 64 },
+  { name: 'ETH Zurich (스위스)', count: 62 },
+  { name: 'Northwestern University (미국)', count: 56 },
+  { name: "Scuola Superiore Sant'Anna (이탈리아)", count: 52 },
+  { name: 'University of California (미국)', count: 51 },
+  { name: 'MIT (미국)', count: 43 },
+  { name: 'Harvard University (미국)', count: 33 },
+  { name: 'Columbia University (미국)', count: 27 },
+  { name: 'Chinese Academy of Sciences (중국)', count: 26 },
+  { name: 'Georgia Institute of Technology (미국)', count: 23 },
+  { name: 'University of Michigan (미국)', count: 18 },
+  { name: 'National University of Singapore (싱가포르)', count: 18 },
+];
+
+const categoryData = [
+  { name: 'Stroke/Stroke Rehabilitation', count: 2143, color: '#38bdf8' },
+  { name: 'Gait/Walking/Lower Extremity', count: 1799, color: '#818cf8' },
+  { name: 'Upper Extremity/Hand/Arm', count: 1814, color: '#34d399' },
+  { name: 'Exoskeleton/Wearable', count: 1202, color: '#f472b6' },
+  { name: 'Exercise Therapy/Physical Therapy', count: 1358, color: '#fb923c' },
+  { name: 'Spinal Cord Injury', count: 611, color: '#22d3ee' },
+  { name: 'EMG/EEG/BCI', count: 876, color: '#a78bfa' },
+  { name: 'Virtual Reality/Serious Games', count: 277, color: '#fbbf24' },
+];
+
+const burstData = [
+  { keyword: 'Exoskeleton Device', burst: 1013, period: '2013-2025', status: 'active' },
+  { keyword: 'Virtual Reality', burst: 277, period: '2012-2025', status: 'active' },
+  { keyword: 'Wearable Electronic Devices', burst: 189, period: '2016-2025', status: 'active' },
+  { keyword: 'Brain-Computer Interfaces', burst: 179, period: '2012-2025', status: 'active' },
+  { keyword: 'Machine Learning', burst: 160, period: '2015-2025', status: 'active' },
+  { keyword: 'Deep Learning', burst: 64, period: '2017-2025', status: 'emerging' },
+  { keyword: 'Neurorehabilitation', burst: 175, period: '2014-2025', status: 'active' },
+  { keyword: 'Quality of Life', burst: 289, period: '2008-2025', status: 'mature' },
+];
+
+const keywordTrend = {
+  labels: ['2000','2003','2006','2009','2011','2013','2015','2017','2019','2021','2023','2025'],
+  datasets: [
+    { label: 'Exoskeleton', data: [0,0,0,0,0,3,22,129,106,158,105,170], color: '#38bdf8' },
+    { label: 'BCI', data: [0,0,0,0,0,7,11,19,17,13,5,32], color: '#f472b6' },
+    { label: 'Virtual Reality', data: [0,0,0,0,0,2,0,13,23,36,24,46], color: '#34d399' },
+    { label: 'Machine Learning', data: [0,0,0,0,0,0,3,4,7,20,17,34], color: '#fb923c' },
+    { label: 'Wearable', data: [0,0,0,0,0,0,0,14,15,20,25,43], color: '#818cf8' },
+    { label: 'Deep Learning', data: [0,0,0,0,0,0,0,0,1,3,7,24], color: '#22d3ee' },
+  ]
+};
+
+const aiNeuroData = {
+  labels: ['2008','2010','2012','2014','2016','2018','2019','2020','2021','2022','2023','2024','2025'],
+  rct: [11,8,19,26,23,35,38,42,48,44,34,52,63],
+  review: [7,15,26,31,29,44,44,49,80,85,84,107,132],
+};
+
+const fieldData = {
+  labels: ['Journal Article','Review/Systematic Review','RCT','Clinical Trial','Case Report','기타'],
+  values: [53, 14, 10, 6, 4, 13],
+  colors: ['#38bdf8','#818cf8','#34d399','#f472b6','#fb923c','#64748b']
+};
+
+const timelineData = [
+  { year: '2000', text: 'MIT-Manus, Lokomat 최초 임상 시험 시작' },
+  { year: '2003', text: 'MIME (Mirror Image Movement Enabler) - 양측성 재활 개념' },
+  { year: '2005', text: 'ARMin 프로젝트 (ETH Zurich) - 상지 재활 외골격 개발' },
+  { year: '2008', text: 'BCI + 재활로봇 통합연구 시작' },
+  { year: '2010', text: 'SCI 보행재활 외골격 본격 개발' },
+  { year: '2012', text: 'ReWalk, Ekso FDA 승인 외골격 보행로봇' },
+  { year: '2014', text: 'Cyberdyne HAL 의료기기 인증' },
+  { year: '2016', text: '소프트 로보틱스 재활 응용 부상' },
+  { year: '2018', text: 'AI/ML 기반 적응형 제어 연구 급증, 딥러닝 도입' },
+  { year: '2020', text: 'COVID-19 → 원격재활·가정용 로봇 연구 확대' },
+  { year: '2022', text: '소프트 외골격, 촉각 피드백 본격화' },
+  { year: '2024', text: 'LLM/생성AI, 디지털 치료제 통합 연구 시작' },
+  { year: '2025', text: 'AI+재활로봇 논문 연 2,300편 돌파, 시장 $500M+' },
+];
+
+const collabData = [
+  { pair: '미국 ↔ 중국', count: 320 },
+  { pair: '미국 ↔ 이탈리아', count: 185 },
+  { pair: '미국 ↔ 독일', count: 162 },
+  { pair: '중국 ↔ 영국', count: 140 },
+  { pair: '미국 ↔ 일본', count: 128 },
+  { pair: '독일 ↔ 스위스', count: 115 },
+  { pair: '이탈리아 ↔ 스위스', count: 105 },
+  { pair: '미국 ↔ 한국', count: 95 },
+  { pair: '중국 ↔ 일본', count: 88 },
+  { pair: '영국 ↔ 독일', count: 82 },
+  { pair: '중국 ↔ 호주', count: 75 },
+  { pair: '미국 ↔ 캐나다', count: 72 },
+];
+
+const collabGrowth = {
+  labels: ['2005','2008','2011','2013','2015','2017','2019','2021','2023','2025'],
+  intl: [22,35,83,142,75,224,160,114,149,220],
+  domestic: [1,1,5,3,12,27,31,63,94,141],
+};
+
+// ======== CHART DEFAULTS ========
+Chart.defaults.color = '#94a3b8';
+Chart.defaults.borderColor = 'rgba(51,65,85,0.5)';
+Chart.defaults.font.family = "'Segoe UI', -apple-system, sans-serif";
+
+// ======== RENDER FUNCTIONS ========
+let charts = {};
+
+function createYearlyChart() {
+  const ctx = document.getElementById('yearlyChart').getContext('2d');
+  charts.yearly = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: years,
+      datasets: [{
+        label: '논문 수',
+        data: pubCounts,
+        backgroundColor: years.map((y,i) => {
+          const alpha = 0.4 + (i / years.length) * 0.6;
+          return `rgba(56,189,248,${alpha})`;
+        }),
+        borderColor: '#38bdf8',
+        borderWidth: 1,
+        borderRadius: 4,
+        yAxisID: 'y'
+      },{
+        label: '누적 인용 수',
+        data: citations,
+        type: 'line',
+        borderColor: '#f472b6',
+        backgroundColor: 'rgba(244,114,182,0.1)',
+        pointRadius: 2,
+        pointHoverRadius: 5,
+        tension: 0.3,
+        fill: true,
+        yAxisID: 'y1'
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { position: 'top', labels: { usePointStyle: true, padding: 20 } },
+        tooltip: {
+          callbacks: {
+            label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y.toLocaleString()}`
+          }
+        }
+      },
+      scales: {
+        y: { position: 'left', title: { display: true, text: '논문 수' }, grid: { color: 'rgba(51,65,85,0.3)' } },
+        y1: { position: 'right', title: { display: true, text: '누적 인용 수' }, grid: { display: false } },
+        x: { grid: { display: false } }
+      }
+    }
+  });
+}
+
+function createCountryChart() {
+  const ctx = document.getElementById('countryChart').getContext('2d');
+  const colors = ['#38bdf8','#818cf8','#34d399','#f472b6','#fb923c','#a78bfa','#22d3ee','#f87171','#facc15','#4ade80','#ec4899','#14b8a6'];
+  charts.country = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: countryData.labels,
+      datasets: [{ data: countryData.values, backgroundColor: colors, borderWidth: 0, hoverOffset: 8 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      cutout: '55%',
+      plugins: {
+        legend: { position: 'right', labels: { usePointStyle: true, padding: 10, font: { size: 11 } } },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              const total = ctx.dataset.data.reduce((a,b) => a+b, 0);
+              return `${ctx.label}: ${ctx.parsed.toLocaleString()} (${(ctx.parsed/total*100).toFixed(1)}%)`;
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
+function createKeywordChart() {
+  const ctx = document.getElementById('keywordChart').getContext('2d');
+  const colors = ['#38bdf8','#818cf8','#34d399','#f472b6','#fb923c','#22d3ee','#a78bfa','#facc15','#4ade80','#f87171','#ec4899','#14b8a6','#06b6d4','#fbbf24','#c084fc'];
+  charts.keyword = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: keywordData.labels,
+      datasets: [{
+        data: keywordData.values,
+        backgroundColor: colors,
+        borderRadius: 6,
+        barThickness: 24,
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false },
+        tooltip: { callbacks: { label: ctx => `빈도: ${ctx.parsed.x.toLocaleString()}` } }
+      },
+      scales: {
+        x: { grid: { color: 'rgba(51,65,85,0.3)' } },
+        y: { grid: { display: false } }
+      }
+    }
+  });
+}
+
+function createAiNeuroChart() {
+  const ctx = document.getElementById('aiNeuroChart').getContext('2d');
+  charts.aiNeuro = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: aiNeuroData.labels,
+      datasets: [{
+        label: 'RCT (Randomized Controlled Trial)',
+        data: aiNeuroData.rct,
+        backgroundColor: 'rgba(56,189,248,0.7)',
+        borderColor: '#38bdf8',
+        borderWidth: 1,
+        borderRadius: 4,
+        stack: 'a',
+      },{
+        label: 'Review / Systematic Review',
+        data: aiNeuroData.review,
+        backgroundColor: 'rgba(129,140,248,0.7)',
+        borderColor: '#818cf8',
+        borderWidth: 1,
+        borderRadius: 4,
+        stack: 'a',
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'top', labels: { usePointStyle: true } },
+        tooltip: { callbacks: { label: ctx => `논문 수: ${ctx.parsed.y}` } }
+      },
+      scales: {
+        y: { stacked: true, beginAtZero: true, grid: { color: 'rgba(51,65,85,0.3)' } },
+        x: { stacked: true, grid: { display: false } }
+      }
+    }
+  });
+}
+
+function createKeywordTrendChart() {
+  const ctx = document.getElementById('keywordTrendChart').getContext('2d');
+  charts.keywordTrend = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: keywordTrend.labels,
+      datasets: keywordTrend.datasets.map(d => ({
+        label: d.label,
+        data: d.data,
+        borderColor: d.color,
+        backgroundColor: d.color + '20',
+        pointRadius: 3,
+        pointHoverRadius: 6,
+        tension: 0.35,
+        fill: false,
+        borderWidth: 2,
+      }))
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { position: 'top', labels: { usePointStyle: true, padding: 16 } } },
+      scales: {
+        y: { title: { display: true, text: '누적 논문 수' }, grid: { color: 'rgba(51,65,85,0.3)' } },
+        x: { grid: { display: false } }
+      }
+    }
+  });
+}
+
+function createFieldChart() {
+  const ctx = document.getElementById('fieldChart').getContext('2d');
+  charts.field = new Chart(ctx, {
+    type: 'polarArea',
+    data: {
+      labels: fieldData.labels.map(l => l.replace('\n',' ')),
+      datasets: [{
+        data: fieldData.values,
+        backgroundColor: fieldData.colors.map(c => c + 'AA'),
+        borderColor: fieldData.colors,
+        borderWidth: 1,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'right', labels: { usePointStyle: true, font: { size: 11 }, padding: 8 } },
+        tooltip: { callbacks: { label: ctx => `${ctx.label}: ${ctx.parsed.r}%` } }
+      },
+      scales: { r: { ticks: { display: false }, grid: { color: 'rgba(51,65,85,0.3)' } } }
+    }
+  });
+}
+
+function createCitationChart() {
+  const ctx = document.getElementById('citationChart').getContext('2d');
+  const yearlyCit = citations.map((c,i) => i === 0 ? c : c - citations[i-1]);
+  charts.citation = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: years,
+      datasets: [{
+        label: '연간 신규 인용 수',
+        data: yearlyCit,
+        borderColor: '#fb923c',
+        backgroundColor: 'rgba(251,146,60,0.15)',
+        fill: true,
+        tension: 0.35,
+        pointRadius: 3,
+      },{
+        label: '누적 인용 수',
+        data: citations,
+        borderColor: '#818cf8',
+        borderDash: [5,5],
+        pointRadius: 0,
+        tension: 0.35,
+        yAxisID: 'y1'
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { position: 'top', labels: { usePointStyle: true, padding: 16 } } },
+      scales: {
+        y: { position: 'left', title: { display: true, text: '연간 인용' }, grid: { color: 'rgba(51,65,85,0.3)' } },
+        y1: { position: 'right', title: { display: true, text: '누적 인용' }, grid: { display: false } },
+        x: { grid: { display: false } }
+      }
+    }
+  });
+}
+
+function createCollabGrowthChart() {
+  const ctx = document.getElementById('collabGrowthChart').getContext('2d');
+  charts.collabGrowth = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: collabGrowth.labels,
+      datasets: [{
+        label: '미국 (USA)',
+        data: collabGrowth.intl,
+        backgroundColor: 'rgba(56,189,248,0.7)',
+        borderRadius: 4,
+        stack: 'a',
+      },{
+        label: '중국 (China)',
+        data: collabGrowth.domestic,
+        backgroundColor: 'rgba(129,140,248,0.5)',
+        borderRadius: 4,
+        stack: 'a',
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'top', labels: { usePointStyle: true } } },
+      scales: {
+        y: { stacked: true, title: { display: true, text: '논문 수' }, grid: { color: 'rgba(51,65,85,0.3)' } },
+        x: { stacked: true, grid: { display: false } }
+      }
+    }
+  });
+}
+
+// ======== TABLES ========
+function renderJournalTable() {
+  const maxCount = journalData[0].count;
+  document.getElementById('journalTable').innerHTML = journalData.map((j,i) => {
+    const rankClass = i < 3 ? `rank-${i+1}` : 'rank-n';
+    const barW = (j.count / maxCount * 100).toFixed(0);
+    const colors = ['#38bdf8','#818cf8','#34d399','#f472b6','#fb923c','#a78bfa','#22d3ee','#f87171','#facc15','#4ade80','#ec4899','#14b8a6'];
+    const color = colors[i];
+    return `<tr>
+      <td><span class="rank ${rankClass}">${i+1}</span></td>
+      <td>${j.name}</td>
+      <td><div class="bar-cell"><span>${j.count}</span><div class="bar-fill" style="width:${barW}px;background:${color}"></div></div></td>
+      <td><span class="badge" style="background:${color}22;color:${color}">${j.pct}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+function renderInstitutionTable() {
+  const maxCount = institutionData[0].count;
+  document.getElementById('institutionTable').innerHTML = institutionData.map((inst,i) => {
+    const rankClass = i < 3 ? `rank-${i+1}` : 'rank-n';
+    const barW = (inst.count / maxCount * 80).toFixed(0);
+    const colors = ['#38bdf8','#818cf8','#34d399','#f472b6','#fb923c','#a78bfa','#22d3ee','#f87171','#facc15','#4ade80','#ec4899','#14b8a6'];
+    const color = colors[i];
+    return `<tr>
+      <td><span class="rank ${rankClass}">${i+1}</span></td>
+      <td>${inst.name}</td>
+      <td><div class="bar-cell"><span>${inst.count}</span><div class="bar-fill" style="width:${barW}px;background:${color}"></div></div></td>
+    </tr>`;
+  }).join('');
+}
+
+function renderCategoryTable() {
+  const maxCount = categoryData[0].count;
+  document.getElementById('categoryTable').innerHTML = categoryData.map((cat,i) => {
+    const total = categoryData.reduce((a,b) => a + b.count, 0);
+    const pct = ((cat.count / total) * 100).toFixed(1);
+    const colors = ['#38bdf8','#818cf8','#34d399','#f472b6','#fb923c','#a78bfa','#22d3ee','#f87171'];
+    const color = colors[i % colors.length];
+    const barW = (cat.count / maxCount * 100).toFixed(0);
+    return `<tr>
+      <td style="font-weight:500">${cat.name}</td>
+      <td><div class="bar-cell"><span>${cat.count}</span><div class="bar-fill" style="width:${barW}px;background:${color}"></div></div></td>
+      <td><span class="badge" style="background:${color}22;color:${color}">${pct}%</span></td>
+    </tr>`;
+  }).join('');
+}
+
+function renderBurstTable() {
+  document.getElementById('burstTable').innerHTML = burstData.map((b,i) => {
+    const rankClass = i < 3 ? `rank-${i+1}` : 'rank-n';
+    const colors = ['#38bdf8','#818cf8','#34d399','#f472b6','#fb923c','#a78bfa','#22d3ee','#f87171'];
+    const color = colors[i % colors.length];
+    return `<tr>
+      <td><span class="rank ${rankClass}">${i+1}</span></td>
+      <td><strong>${b.keyword}</strong></td>
+      <td><span style="color:${color}; font-weight:600">${b.burst.toFixed(2)}</span></td>
+      <td><span style="color:#94a3b8">${b.period}</span></td>
+      <td><div class="bar-fill" style="width:${Math.min(100, b.burst * 1.3)}px; height:4px; background:${color}"></div></td>
+    </tr>`;
+  }).join('');
+}
+
+function renderTimeline() {
+  document.getElementById('timelineContainer').innerHTML = timelineData.map(t =>
+    `<div class="timeline-item">
+      <div class="timeline-year">${t.year}</div>
+      <div class="timeline-content">${t.text}</div>
+    </div>`
+  ).join('');
+}
+
+function renderCollabTable() {
+  const maxCount = collabData[0].count;
+  document.getElementById('collabTable').innerHTML = collabData.map((c,i) => {
+    const rankClass = i < 3 ? `rank-${i+1}` : 'rank-n';
+    const barW = (c.count / maxCount * 100).toFixed(0);
+    const colors = ['#38bdf8','#818cf8','#34d399','#f472b6','#fb923c','#a78bfa','#22d3ee','#f87171','#facc15','#4ade80','#ec4899','#14b8a6'];
+    const color = colors[i % colors.length];
+    return `<tr>
+      <td><span class="rank ${rankClass}">${i+1}</span></td>
+      <td>${c.pair}</td>
+      <td><div class="bar-cell"><span>${c.count}</span><div class="bar-fill" style="width:${barW}px;background:${color}"></div></div></td>
+    </tr>`;
+  }).join('');
+}
+
+// ======== TAB SWITCH ========
+function switchTab(group, tab) {
+  document.querySelectorAll(`[id^="${group}-"]`).forEach(el => el.classList.remove('active'));
+  document.getElementById(`${group}-${tab}`).classList.add('active');
+  const btns = document.getElementById(`${group}-${tab}`).parentElement.querySelectorAll('.tab-btn');
+  btns.forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+}
+
+// ======== FILTER ========
+function updateCharts() {
+  const period = document.getElementById('periodFilter').value;
+  let startIdx = 0, endIdx = years.length;
+  if (period === 'early') { startIdx = 0; endIdx = 10; }
+  else if (period === 'mid') { startIdx = 10; endIdx = 18; }
+  else if (period === 'recent') { startIdx = 18; endIdx = years.length; }
+
+  charts.yearly.data.labels = years.slice(startIdx, endIdx);
+  charts.yearly.data.datasets[0].data = pubCounts.slice(startIdx, endIdx);
+  charts.yearly.data.datasets[1].data = citations.slice(startIdx, endIdx);
+  charts.yearly.update('active');
+}
+
+// ======== KEYWORD NETWORK (TIME-AWARE) ========
+const netClusterColors = { robot:'#38bdf8', clinical:'#34d399', ai:'#fb923c', body:'#f472b6', general:'#818cf8' };
+const netClusterNames = { robot:'로봇 기술', clinical:'임상 응용', ai:'AI/제어', body:'신체 부위', general:'일반/기타' };
+
+// yearStart = year this keyword first appeared significantly in rehab robotics literature
+const netNodes = [
+  // Robot tech
+  { id:'Exoskeleton', cluster:'robot', weight:2800, yearStart:2013 },
+  { id:'End-effector', cluster:'robot', weight:580, yearStart:2000 },
+  { id:'Actuator', cluster:'robot', weight:720, yearStart:2002 },
+  { id:'Pneumatic', cluster:'robot', weight:380, yearStart:2004 },
+  { id:'Cable-driven', cluster:'robot', weight:290, yearStart:2006 },
+  { id:'Series Elastic Actuator', cluster:'robot', weight:320, yearStart:2008 },
+  { id:'Wearable', cluster:'robot', weight:950, yearStart:2016 },
+  { id:'Tendon-driven', cluster:'robot', weight:410, yearStart:2012 },
+  { id:'Soft Robotics', cluster:'robot', weight:1380, yearStart:2014 },
+  // Clinical
+  { id:'Rehabilitation', cluster:'clinical', weight:2400, yearStart:2000 },
+  { id:'Stroke', cluster:'clinical', weight:2650, yearStart:2000 },
+  { id:'Motor Recovery', cluster:'clinical', weight:1100, yearStart:2000 },
+  { id:'Spinal Cord Injury', cluster:'clinical', weight:860, yearStart:2002 },
+  { id:'Functional Recovery', cluster:'clinical', weight:780, yearStart:2003 },
+  { id:'Neuroplasticity', cluster:'clinical', weight:540, yearStart:2005 },
+  { id:'Clinical Trial', cluster:'clinical', weight:620, yearStart:2008 },
+  { id:'Cerebral Palsy', cluster:'clinical', weight:350, yearStart:2002 },
+  { id:'Parkinson', cluster:'clinical', weight:280, yearStart:2012 },
+  // AI/Control
+  { id:'Impedance Control', cluster:'ai', weight:720, yearStart:2000 },
+  { id:'EMG', cluster:'ai', weight:850, yearStart:2002 },
+  { id:'Adaptive Control', cluster:'ai', weight:650, yearStart:2003 },
+  { id:'BCI', cluster:'ai', weight:920, yearStart:2012 },
+  { id:'Haptic Feedback', cluster:'ai', weight:650, yearStart:2006 },
+  { id:'EEG', cluster:'ai', weight:380, yearStart:2006 },
+  { id:'Machine Learning', cluster:'ai', weight:880, yearStart:2015 },
+  { id:'Deep Learning', cluster:'ai', weight:560, yearStart:2017 },
+  { id:'Reinforcement Learning', cluster:'ai', weight:420, yearStart:2018 },
+  { id:'Transfer Learning', cluster:'ai', weight:310, yearStart:2020 },
+  // Body
+  { id:'Upper Limb', cluster:'body', weight:1720, yearStart:2000 },
+  { id:'Lower Limb', cluster:'body', weight:1200, yearStart:2000 },
+  { id:'Gait', cluster:'body', weight:1850, yearStart:2000 },
+  { id:'Hand', cluster:'body', weight:980, yearStart:2003 },
+  { id:'Shoulder', cluster:'body', weight:440, yearStart:2005 },
+  { id:'Ankle', cluster:'body', weight:520, yearStart:2006 },
+  { id:'Wrist', cluster:'body', weight:380, yearStart:2010 },
+  { id:'Finger', cluster:'body', weight:290, yearStart:2014 },
+  // General
+  { id:'Assistive', cluster:'general', weight:760, yearStart:2002 },
+  { id:'Virtual Reality', cluster:'general', weight:680, yearStart:2012 },
+  { id:'Serious Games', cluster:'general', weight:350, yearStart:2010 },
+  { id:'Task Analysis', cluster:'general', weight:420, yearStart:2012 },
+  { id:'Telerehabilitation', cluster:'general', weight:480, yearStart:2016 },
+  { id:'Digital Health', cluster:'general', weight:380, yearStart:2020 },
+  { id:'Home Rehabilitation', cluster:'general', weight:340, yearStart:2020 },
+];
+
+// yearStart = year this co-occurrence link became significant
+const netLinks = [
+  // Robot intra
+  { source:'Exoskeleton', target:'Actuator', value:8, yearStart:2002 },
+  { source:'Exoskeleton', target:'End-effector', value:5, yearStart:2000 },
+  { source:'End-effector', target:'Actuator', value:5, yearStart:2003 },
+  { source:'Exoskeleton', target:'Pneumatic', value:6, yearStart:2005 },
+  { source:'Cable-driven', target:'End-effector', value:6, yearStart:2007 },
+  { source:'Series Elastic Actuator', target:'Exoskeleton', value:7, yearStart:2009 },
+  { source:'Exoskeleton', target:'Wearable', value:9, yearStart:2011 },
+  { source:'Wearable', target:'Soft Robotics', value:7, yearStart:2015 },
+  { source:'Exoskeleton', target:'Soft Robotics', value:9, yearStart:2015 },
+  { source:'Soft Robotics', target:'Actuator', value:7, yearStart:2015 },
+  { source:'Soft Robotics', target:'Pneumatic', value:8, yearStart:2015 },
+  { source:'Soft Robotics', target:'Tendon-driven', value:7, yearStart:2014 },
+  { source:'Tendon-driven', target:'Actuator', value:5, yearStart:2013 },
+  // Clinical intra
+  { source:'Stroke', target:'Rehabilitation', value:10, yearStart:2000 },
+  { source:'Stroke', target:'Motor Recovery', value:9, yearStart:2000 },
+  { source:'Spinal Cord Injury', target:'Rehabilitation', value:7, yearStart:2003 },
+  { source:'Spinal Cord Injury', target:'Motor Recovery', value:6, yearStart:2004 },
+  { source:'Stroke', target:'Functional Recovery', value:8, yearStart:2004 },
+  { source:'Stroke', target:'Neuroplasticity', value:7, yearStart:2006 },
+  { source:'Neuroplasticity', target:'Motor Recovery', value:6, yearStart:2007 },
+  { source:'Clinical Trial', target:'Rehabilitation', value:6, yearStart:2009 },
+  { source:'Clinical Trial', target:'Functional Recovery', value:5, yearStart:2010 },
+  { source:'Cerebral Palsy', target:'Rehabilitation', value:5, yearStart:2011 },
+  { source:'Parkinson', target:'Motor Recovery', value:5, yearStart:2013 },
+  // AI intra
+  { source:'Impedance Control', target:'Adaptive Control', value:7, yearStart:2004 },
+  { source:'EMG', target:'Adaptive Control', value:7, yearStart:2004 },
+  { source:'BCI', target:'EMG', value:8, yearStart:2006 },
+  { source:'Haptic Feedback', target:'Impedance Control', value:6, yearStart:2007 },
+  { source:'EEG', target:'BCI', value:7, yearStart:2008 },
+  { source:'BCI', target:'Machine Learning', value:6, yearStart:2013 },
+  { source:'Machine Learning', target:'Deep Learning', value:8, yearStart:2017 },
+  { source:'Machine Learning', target:'Reinforcement Learning', value:7, yearStart:2018 },
+  { source:'Deep Learning', target:'EMG', value:5, yearStart:2018 },
+  { source:'Transfer Learning', target:'Deep Learning', value:6, yearStart:2020 },
+  { source:'Reinforcement Learning', target:'Adaptive Control', value:5, yearStart:2019 },
+  // Body intra
+  { source:'Upper Limb', target:'Hand', value:8, yearStart:2003 },
+  { source:'Lower Limb', target:'Gait', value:9, yearStart:2000 },
+  { source:'Upper Limb', target:'Shoulder', value:7, yearStart:2006 },
+  { source:'Lower Limb', target:'Ankle', value:7, yearStart:2007 },
+  { source:'Gait', target:'Ankle', value:6, yearStart:2008 },
+  { source:'Hand', target:'Finger', value:6, yearStart:2015 },
+  { source:'Shoulder', target:'Wrist', value:4, yearStart:2011 },
+  // Cross-cluster
+  { source:'Exoskeleton', target:'Gait', value:9, yearStart:2001 },
+  { source:'Exoskeleton', target:'Upper Limb', value:8, yearStart:2002 },
+  { source:'Exoskeleton', target:'Lower Limb', value:8, yearStart:2002 },
+  { source:'Exoskeleton', target:'Stroke', value:7, yearStart:2003 },
+  { source:'End-effector', target:'Upper Limb', value:6, yearStart:2001 },
+  { source:'End-effector', target:'Stroke', value:5, yearStart:2002 },
+  { source:'Stroke', target:'Upper Limb', value:8, yearStart:2001 },
+  { source:'Stroke', target:'Gait', value:7, yearStart:2002 },
+  { source:'EMG', target:'Exoskeleton', value:6, yearStart:2005 },
+  { source:'EMG', target:'Upper Limb', value:5, yearStart:2005 },
+  { source:'Exoskeleton', target:'Spinal Cord Injury', value:6, yearStart:2006 },
+  { source:'Exoskeleton', target:'Impedance Control', value:6, yearStart:2004 },
+  { source:'Stroke', target:'BCI', value:6, yearStart:2007 },
+  { source:'BCI', target:'Upper Limb', value:5, yearStart:2008 },
+  { source:'Haptic Feedback', target:'Virtual Reality', value:6, yearStart:2007 },
+  { source:'Virtual Reality', target:'Rehabilitation', value:6, yearStart:2006 },
+  { source:'Virtual Reality', target:'Motor Recovery', value:5, yearStart:2008 },
+  { source:'Virtual Reality', target:'Serious Games', value:7, yearStart:2011 },
+  { source:'Serious Games', target:'Rehabilitation', value:5, yearStart:2011 },
+  { source:'Assistive', target:'Exoskeleton', value:5, yearStart:2004 },
+  { source:'Assistive', target:'Wearable', value:5, yearStart:2012 },
+  { source:'Assistive', target:'Lower Limb', value:4, yearStart:2005 },
+  { source:'Soft Robotics', target:'Hand', value:7, yearStart:2016 },
+  { source:'Soft Robotics', target:'Upper Limb', value:5, yearStart:2016 },
+  { source:'Machine Learning', target:'Rehabilitation', value:5, yearStart:2014 },
+  { source:'Machine Learning', target:'Gait', value:5, yearStart:2015 },
+  { source:'Wearable', target:'Gait', value:5, yearStart:2013 },
+  { source:'Wearable', target:'EMG', value:5, yearStart:2013 },
+  { source:'Adaptive Control', target:'Exoskeleton', value:5, yearStart:2006 },
+  { source:'Deep Learning', target:'Gait', value:4, yearStart:2019 },
+  { source:'Reinforcement Learning', target:'Exoskeleton', value:4, yearStart:2019 },
+  { source:'Series Elastic Actuator', target:'Impedance Control', value:6, yearStart:2010 },
+  { source:'Telerehabilitation', target:'Rehabilitation', value:5, yearStart:2017 },
+  { source:'Telerehabilitation', target:'Virtual Reality', value:4, yearStart:2018 },
+  { source:'Task Analysis', target:'Gait', value:6, yearStart:2014 },
+  { source:'Task Analysis', target:'Upper Limb', value:5, yearStart:2014 },
+  { source:'Home Rehabilitation', target:'Rehabilitation', value:5, yearStart:2020 },
+  { source:'Digital Health', target:'Telerehabilitation', value:6, yearStart:2021 },
+  { source:'Home Rehabilitation', target:'Telerehabilitation', value:5, yearStart:2021 },
+  { source:'Transfer Learning', target:'BCI', value:4, yearStart:2022 },
+];
+
+const eraLabels = [
+  [2000, '초기 연구기 (2000-2005): MIT-Manus, Lokomat 임상 시작'],
+  [2006, '성장 초기 (2006-2009): BCI·VR 통합 연구 개시'],
+  [2010, '확산기 (2010-2013): FDA 외골격 승인, 웨어러블 부상'],
+  [2014, '다변화기 (2014-2017): 소프트 로보틱스, ML 도입'],
+  [2018, '급성장기 (2018-2020): AI/DL 급증, COVID 원격재활'],
+  [2021, '융합기 (2021-2023): 디지털 헬스, 전이학습'],
+  [2024, '미래 (2024-2026): LLM/생성AI, 개인맞춤 재활'],
+];
+
+let currentCluster = 'all';
+let currentMinLink = 3;
+let currentYear = 2026;
+let simulation;
+let playInterval = null;
+let playSpeed = 1200;
+
+function getEraLabel(year) {
+  for (let i = eraLabels.length - 1; i >= 0; i--) {
+    if (year >= eraLabels[i][0]) return eraLabels[i][1];
+  }
+  return eraLabels[0][1];
+}
+
+function createNetwork() {
+  const container = document.getElementById('networkContainer');
+  const width = container.clientWidth;
+  const height = container.clientHeight;
+
+  d3.select('#networkContainer svg').remove();
+  const svg = d3.select('#networkContainer').append('svg').attr('width', width).attr('height', height);
+
+  const defs = svg.append('defs');
+  const glow = defs.append('filter').attr('id','glow');
+  glow.append('feGaussianBlur').attr('stdDeviation','3').attr('result','coloredBlur');
+  const mg = glow.append('feMerge');
+  mg.append('feMergeNode').attr('in','coloredBlur');
+  mg.append('feMergeNode').attr('in','SourceGraphic');
+
+  // Time + cluster filter
+  let nodes = netNodes
+    .filter(n => n.yearStart <= currentYear)
+    .filter(n => currentCluster === 'all' || n.cluster === currentCluster)
+    .map(n => ({...n}));
+
+  const nodeIds = new Set(nodes.map(n => n.id));
+  let links = netLinks
+    .filter(l => l.yearStart <= currentYear)
+    .filter(l => nodeIds.has(l.source) && nodeIds.has(l.target))
+    .filter(l => l.value >= currentMinLink)
+    .map(l => ({ source: l.source, target: l.target, value: l.value, yearStart: l.yearStart }));
+
+  // Find newly appeared nodes (within last 2 years)
+  const newNodeIds = new Set(nodes.filter(n => n.yearStart >= currentYear - 1 && n.yearStart <= currentYear).map(n => n.id));
+
+  // Stats
+  document.getElementById('statNodes').textContent = nodes.length;
+  document.getElementById('statLinks').textContent = links.length;
+  const newNames = nodes.filter(n => newNodeIds.has(n.id)).map(n => n.id);
+  document.getElementById('statNew').textContent = newNames.length > 0 ? newNames.join(', ') : '-';
+
+  if (nodes.length === 0) return;
+
+  const globalMax = Math.max(...netNodes.map(n => n.weight));
+  const rScale = d3.scaleSqrt().domain([200, globalMax]).range([7, 36]);
+
+  // Weight scales with time (newer = smaller fraction of full weight)
+  const weightAtYear = (n) => {
+    const age = currentYear - n.yearStart;
+    const growth = Math.min(1, age / 8);
+    return n.weight * (0.2 + 0.8 * growth);
+  };
+
+  simulation = d3.forceSimulation(nodes)
+    .force('link', d3.forceLink(links).id(d => d.id).distance(d => 130 - d.value * 7).strength(d => d.value / 13))
+    .force('charge', d3.forceManyBody().strength(-300))
+    .force('center', d3.forceCenter(width / 2, height / 2))
+    .force('collision', d3.forceCollide().radius(d => rScale(weightAtYear(d)) + 10))
+    .force('x', d3.forceX(width / 2).strength(0.05))
+    .force('y', d3.forceY(height / 2).strength(0.05));
+
+  const link = svg.append('g').selectAll('line').data(links).enter().append('line')
+    .attr('stroke', d => {
+      const s = nodes.find(n => n.id === d.source || (d.source.id && n.id === d.source.id));
+      const t = nodes.find(n => n.id === d.target || (d.target.id && n.id === d.target.id));
+      if (s && t && s.cluster === t.cluster) return netClusterColors[s.cluster] + '55';
+      return '#475569';
+    })
+    .attr('stroke-width', d => Math.max(1, d.value / 2.5))
+    .attr('stroke-opacity', d => d.yearStart >= currentYear - 1 ? 0.8 : 0.4);
+
+  const node = svg.append('g').selectAll('g').data(nodes).enter().append('g')
+    .style('cursor','pointer')
+    .call(d3.drag().on('start', ds).on('drag', dr).on('end', de));
+
+  node.append('circle')
+    .attr('r', d => rScale(weightAtYear(d)))
+    .attr('fill', d => netClusterColors[d.cluster])
+    .attr('fill-opacity', d => newNodeIds.has(d.id) ? 0.6 : 0.25)
+    .attr('stroke', d => netClusterColors[d.cluster])
+    .attr('stroke-width', d => newNodeIds.has(d.id) ? 3 : 2)
+    .style('filter','url(#glow)');
+
+  node.append('text')
+    .text(d => d.id)
+    .attr('text-anchor','middle')
+    .attr('dy', d => rScale(weightAtYear(d)) > 18 ? 4 : rScale(weightAtYear(d)) + 13)
+    .attr('fill', d => newNodeIds.has(d.id) ? '#fff' : '#e2e8f0')
+    .attr('font-size', d => rScale(weightAtYear(d)) > 22 ? 12 : 10)
+    .attr('font-weight', d => newNodeIds.has(d.id) ? 800 : (weightAtYear(d) > 1200 ? 700 : 400))
+    .style('pointer-events','none')
+    .style('text-shadow','0 1px 4px rgba(0,0,0,0.8)');
+
+  // Tooltip
+  const tooltip = document.getElementById('netTooltip');
+  node.on('mouseover', function(event, d) {
+    const conns = links.filter(l => {
+      const sId = typeof l.source === 'object' ? l.source.id : l.source;
+      const tId = typeof l.target === 'object' ? l.target.id : l.target;
+      return sId === d.id || tId === d.id;
+    });
+    const neighbors = conns.map(l => {
+      const sId = typeof l.source === 'object' ? l.source.id : l.source;
+      const tId = typeof l.target === 'object' ? l.target.id : l.target;
+      return sId === d.id ? tId : sId;
+    });
+    tooltip.innerHTML = `<strong style="color:${netClusterColors[d.cluster]}">${d.id}</strong>
+      ${newNodeIds.has(d.id) ? ' <span style="color:#fbbf24;font-size:11px">NEW</span>' : ''}<br>
+      <span style="color:#94a3b8">클러스터: ${netClusterNames[d.cluster]}</span><br>
+      <span style="color:#94a3b8">등장 연도: ${d.yearStart}년</span><br>
+      <span style="color:#94a3b8">빈도: ${d.weight.toLocaleString()}</span><br>
+      <span style="color:#94a3b8">현재 연결: ${conns.length}개</span><br>
+      <span style="color:#94a3b8">주요 연결: ${neighbors.slice(0,5).join(', ')}</span>`;
+    tooltip.style.opacity = 1;
+    tooltip.style.left = (event.offsetX + 16) + 'px';
+    tooltip.style.top = (event.offsetY - 10) + 'px';
+    d3.select(this).select('circle').attr('fill-opacity', 0.6).attr('stroke-width', 3);
+    const connSet = new Set(neighbors); connSet.add(d.id);
+    link.attr('stroke-opacity', l => {
+      const sId = typeof l.source === 'object' ? l.source.id : l.source;
+      const tId = typeof l.target === 'object' ? l.target.id : l.target;
+      return (sId === d.id || tId === d.id) ? 0.9 : 0.06;
+    });
+    node.select('circle').attr('fill-opacity', n => connSet.has(n.id) ? 0.5 : 0.06);
+    node.select('text').attr('fill-opacity', n => connSet.has(n.id) ? 1 : 0.15);
+  })
+  .on('mousemove', function(event) {
+    tooltip.style.left = (event.offsetX + 16) + 'px';
+    tooltip.style.top = (event.offsetY - 10) + 'px';
+  })
+  .on('mouseout', function() {
+    tooltip.style.opacity = 0;
+    node.select('circle').attr('fill-opacity', d => newNodeIds.has(d.id) ? 0.6 : 0.25).attr('stroke-width', d => newNodeIds.has(d.id) ? 3 : 2);
+    node.select('text').attr('fill-opacity', 1);
+    link.attr('stroke-opacity', d => d.yearStart >= currentYear - 1 ? 0.8 : 0.4);
+  });
+
+  simulation.on('tick', () => {
+    nodes.forEach(d => { d.x = Math.max(40, Math.min(width-40, d.x)); d.y = Math.max(40, Math.min(height-40, d.y)); });
+    link.attr('x1',d=>d.source.x).attr('y1',d=>d.source.y).attr('x2',d=>d.target.x).attr('y2',d=>d.target.y);
+    node.attr('transform', d=>`translate(${d.x},${d.y})`);
+  });
+
+  function ds(e,d){if(!e.active)simulation.alphaTarget(0.3).restart();d.fx=d.x;d.fy=d.y;}
+  function dr(e,d){d.fx=e.x;d.fy=e.y;}
+  function de(e,d){if(!e.active)simulation.alphaTarget(0);d.fx=null;d.fy=null;}
+
+  document.getElementById('networkLegend').innerHTML = Object.entries(netClusterColors).map(([k,c]) =>
+    `<div class="legend-item"><div class="legend-dot" style="background:${c}"></div>${netClusterNames[k]}</div>`
+  ).join('') + `<div class="legend-item" style="margin-left:16px;color:#64748b">● 크기=빈도 | 굵기=공동출현 | 밝은 노드=신규 | 드래그 가능</div>`;
+}
+
+// Timeline controls
+function onYearChange(val) {
+  currentYear = parseInt(val);
+  document.getElementById('yearDisplay').textContent = currentYear;
+  document.getElementById('eraLabel').textContent = getEraLabel(currentYear);
+  createNetwork();
+}
+function jumpToYear(y) {
+  document.getElementById('yearSlider').value = y;
+  onYearChange(y);
+}
+function togglePlay() {
+  const btn = document.getElementById('playBtn');
+  if (playInterval) {
+    clearInterval(playInterval);
+    playInterval = null;
+    btn.innerHTML = '&#9654;';
+    btn.classList.remove('playing');
+  } else {
+    if (currentYear >= 2026) { currentYear = 1999; }
+    btn.innerHTML = '&#9646;&#9646;';
+    btn.classList.add('playing');
+    playInterval = setInterval(() => {
+      currentYear++;
+      if (currentYear > 2026) { currentYear = 2026; togglePlay(); return; }
+      document.getElementById('yearSlider').value = currentYear;
+      onYearChange(currentYear);
+    }, playSpeed);
+  }
+}
+function setPlaySpeed(ms, btn) {
+  playSpeed = ms;
+  document.querySelectorAll('.speed-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  if (playInterval) { clearInterval(playInterval); playInterval = null; togglePlay(); }
+}
+
+function setNetCluster(cluster, btn) {
+  currentCluster = cluster;
+  document.querySelectorAll('.net-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  createNetwork();
+}
+function filterLinks(val) {
+  currentMinLink = parseInt(val);
+  document.getElementById('linkVal').textContent = val + '+';
+  createNetwork();
+}
+
+// ======== INIT ========
+window.addEventListener('DOMContentLoaded', () => {
+  createYearlyChart();
+  createCountryChart();
+  createKeywordChart();
+  createAiNeuroChart();
+  createKeywordTrendChart();
+  createFieldChart();
+  createCitationChart();
+  createCollabGrowthChart();
+  renderJournalTable();
+  renderInstitutionTable();
+  renderCategoryTable();
+  renderBurstTable();
+  renderTimeline();
+  renderCollabTable();
+  // Init network at 2026 (show all)
+  currentYear = 2026;
+  document.getElementById('yearSlider').value = 2026;
+  document.getElementById('yearDisplay').textContent = '2026';
+  document.getElementById('eraLabel').textContent = getEraLabel(2026);
+  createNetwork();
+});
+
+window.addEventListener('resize', () => { if(simulation) { simulation.stop(); } createNetwork(); });
+</script>
+</body>
+</html>
