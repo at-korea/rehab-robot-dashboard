@@ -483,6 +483,58 @@
   </div>
 </div>
 
+<!-- ========== 미래 연구 로드맵 섹션 ========== -->
+<div style="margin:32px 24px 0;padding:18px 24px;background:linear-gradient(135deg,#1e293b 0%,#0f172a 100%);border:1px solid #38bdf8;border-radius:12px;">
+  <h2 style="text-align:center;color:#38bdf8;margin:0 0 4px;font-size:22px;">미래 연구 로드맵 (Future Research Roadmap)</h2>
+  <p style="text-align:center;color:#94a3b8;margin:0;font-size:13px;">5,969편 논문의 트렌드 분석 기반 2027-2030 연구 방향 전망</p>
+</div>
+
+<div class="grid" style="margin-top:12px;">
+
+  <!-- R1. 트렌드 기반 예측 -->
+  <div class="card full">
+    <h3><span class="dot" style="background:#38bdf8"></span>분야별 성장 추세 및 미래 예측 (Trend Projection 2027-2030)</h3>
+    <div class="chart-container" style="height:360px">
+      <canvas id="trendProjectionChart"></canvas>
+    </div>
+  </div>
+
+  <!-- R2. Emerging / Declining Topics -->
+  <div class="card">
+    <h3><span class="dot" style="background:#34d399"></span>급부상 키워드 (Emerging Topics)</h3>
+    <table class="data-table">
+      <thead><tr><th>#</th><th>키워드</th><th>최근 4년</th><th>성장률</th></tr></thead>
+      <tbody id="emergingTable"></tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h3><span class="dot" style="background:#f87171"></span>쇠퇴 키워드 (Declining Topics)</h3>
+    <table class="data-table">
+      <thead><tr><th>#</th><th>키워드</th><th>총 논문</th><th>변화</th></tr></thead>
+      <tbody id="decliningTable"></tbody>
+    </table>
+  </div>
+
+  <!-- R3. 기술 성숙도 S-Curve -->
+  <div class="card full">
+    <h3><span class="dot" style="background:#a78bfa"></span>기술 성숙도 분석 (Technology S-Curve Maturity)</h3>
+    <div class="chart-container" style="height:340px">
+      <canvas id="maturityChart"></canvas>
+    </div>
+  </div>
+
+  <!-- R4. 연구 공백 히트맵 -->
+  <div class="card full">
+    <h3><span class="dot" style="background:#fb923c"></span>연구 공백 분석 — 미개척 기회 (Research Gap Heatmap: Field × Disability)</h3>
+    <div style="overflow-x:auto;">
+      <canvas id="gapHeatmap" style="max-height:320px;"></canvas>
+    </div>
+    <p id="gapInsight" style="margin:12px 0 0;color:#94a3b8;font-size:13px;line-height:1.6;"></p>
+  </div>
+
+</div>
+
 <div class="source-note">
   <strong>데이터 출처 및 참고 문헌</strong>
   <div style="text-align: center; padding: 16px 0; font-size: 13px; color: var(--accent3);">
@@ -1685,6 +1737,328 @@ function filterLinks(val) {
 }
 
 // ======== INIT ========
+// =============== FUTURE RESEARCH ROADMAP ===============
+
+function createTrendProjectionChart() {
+  // Compute per-field per-year counts from _papersData
+  const fieldNames = ['상지 재활','하지/보행','BCI/뇌신경','소프트 로봇','외골격','AI/ML'];
+  const fieldBits = [0,1,2,3,4,5];
+  const colors = ['#38bdf8','#34d399','#a78bfa','#f472b6','#fb923c','#fbbf24'];
+
+  const years = [];
+  for (let y=2015; y<=2025; y++) years.push(y);
+  const futureYears = [2026,2027,2028,2029,2030];
+
+  // Count papers per field per year
+  const fieldYearCounts = fieldBits.map(() => ({}));
+  _papersData.forEach(p => {
+    const yr = p[0], fb = p[2];
+    if (yr < 2015) return;
+    fieldBits.forEach((bit, fi) => {
+      if (fb & (1 << bit)) {
+        if (!fieldYearCounts[fi][yr]) fieldYearCounts[fi][yr] = 0;
+        fieldYearCounts[fi][yr]++;
+      }
+    });
+  });
+
+  // Simple linear regression on 2018-2025 for projection
+  function linReg(data) {
+    const n = data.length;
+    let sx=0, sy=0, sxx=0, sxy=0;
+    data.forEach(([x,y]) => { sx+=x; sy+=y; sxx+=x*x; sxy+=x*y; });
+    const slope = (n*sxy - sx*sy) / (n*sxx - sx*sx);
+    const intercept = (sy - slope*sx) / n;
+    return {slope, intercept, predict: x => Math.max(0, Math.round(slope*x + intercept))};
+  }
+
+  const datasets = [];
+  fieldBits.forEach((bit, fi) => {
+    const actualData = years.map(y => fieldYearCounts[fi][y] || 0);
+    // Regression on 2018-2025
+    const regData = [];
+    for (let y=2018; y<=2025; y++) regData.push([y, fieldYearCounts[fi][y]||0]);
+    const reg = linReg(regData);
+    const projData = futureYears.map(y => reg.predict(y));
+
+    // Actual line (solid)
+    datasets.push({
+      label: fieldNames[fi],
+      data: [...actualData, null, null, null, null, null],
+      borderColor: colors[fi],
+      backgroundColor: colors[fi] + '20',
+      borderWidth: 2.5,
+      pointRadius: 2,
+      tension: 0.3,
+      fill: false
+    });
+    // Projected line (dashed)
+    datasets.push({
+      label: fieldNames[fi] + ' (예측)',
+      data: [...Array(years.length-1).fill(null), actualData[actualData.length-1], ...projData],
+      borderColor: colors[fi],
+      borderWidth: 2,
+      borderDash: [6, 4],
+      pointRadius: 3,
+      pointStyle: 'triangle',
+      tension: 0.3,
+      fill: false
+    });
+  });
+
+  const allLabels = [...years, ...futureYears];
+  new Chart(document.getElementById('trendProjectionChart'), {
+    type: 'line',
+    data: { labels: allLabels, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { labels: { color:'#cbd5e1', font:{size:11}, filter: item => !item.text.includes('예측') }},
+        title: { display: true, text: '← 실측 데이터 | 예측 구간 (2026-2030) →', color: '#38bdf8', font:{size:12}, padding:{bottom:8} }
+      },
+      scales: {
+        x: { ticks:{color:'#94a3b8'}, grid:{color:'#1e293b'} },
+        y: { ticks:{color:'#94a3b8'}, grid:{color:'#1e293b'}, title:{display:true, text:'논문 수', color:'#94a3b8'} }
+      }
+    }
+  });
+}
+
+function renderEmergingDecliningTables() {
+  // Compute keyword yearly counts from _papersData
+  const kwYearCount = {}; // kwIdx -> {year: count}
+  _papersData.forEach(p => {
+    const yr = p[0], kwIndices = p[4];
+    if (!kwIndices || yr < 2000) return;
+    kwIndices.forEach(ki => {
+      if (!kwYearCount[ki]) kwYearCount[ki] = {};
+      kwYearCount[ki][yr] = (kwYearCount[ki][yr]||0) + 1;
+    });
+  });
+
+  const results = [];
+  Object.keys(kwYearCount).forEach(ki => {
+    const yc = kwYearCount[ki];
+    const total = Object.values(yc).reduce((a,b)=>a+b, 0);
+    if (total < 12) return;
+    const recent = [2022,2023,2024,2025].reduce((s,y) => s + (yc[y]||0), 0);
+    const older  = [2018,2019,2020,2021].reduce((s,y) => s + (yc[y]||0), 0);
+    const growth = older > 0 ? ((recent - older) / older * 100) : (recent > 0 ? 999 : 0);
+    results.push({idx: +ki, name: _keywords[+ki], total, recent, growth});
+  });
+
+  // Emerging (top 10 by growth)
+  results.sort((a,b) => b.growth - a.growth);
+  const eBody = document.getElementById('emergingTable');
+  results.slice(0, 10).forEach((r, i) => {
+    const tr = document.createElement('tr');
+    const gColor = r.growth >= 200 ? '#f87171' : r.growth >= 100 ? '#fbbf24' : '#34d399';
+    tr.innerHTML = `<td>${i+1}</td><td>${r.name}</td><td>${r.recent}</td><td style="color:${gColor};font-weight:600">+${Math.round(r.growth)}%</td>`;
+    eBody.appendChild(tr);
+  });
+
+  // Declining (bottom 10)
+  results.sort((a,b) => a.growth - b.growth);
+  const dBody = document.getElementById('decliningTable');
+  results.slice(0, 10).forEach((r, i) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${i+1}</td><td>${r.name}</td><td>${r.total}</td><td style="color:#f87171;font-weight:600">${Math.round(r.growth)}%</td>`;
+    dBody.appendChild(tr);
+  });
+}
+
+function createMaturityChart() {
+  const fields = [
+    {name:'상지 재활', bit:0, color:'#38bdf8'},
+    {name:'하지/보행', bit:1, color:'#34d399'},
+    {name:'BCI/뇌신경', bit:2, color:'#a78bfa'},
+    {name:'소프트 로봇', bit:3, color:'#f472b6'},
+    {name:'외골격', bit:4, color:'#fb923c'},
+    {name:'AI/ML', bit:5, color:'#fbbf24'}
+  ];
+
+  // Compute per-field: total, cumulative% by period, recent acceleration
+  const fieldData = fields.map(f => {
+    const yearly = {};
+    _papersData.forEach(p => {
+      if (p[2] & (1 << f.bit)) {
+        const y = p[0];
+        yearly[y] = (yearly[y]||0) + 1;
+      }
+    });
+    const total = Object.values(yearly).reduce((a,b)=>a+b,0);
+    const p1 = [2000,2001,2002,2003,2004,2005,2006,2007,2008,2009].reduce((s,y)=>s+(yearly[y]||0),0);
+    const p3 = [2018,2019,2020,2021,2022,2023,2024,2025].reduce((s,y)=>s+(yearly[y]||0),0);
+    const recent3 = [2023,2024,2025].reduce((s,y)=>s+(yearly[y]||0),0) / 3;
+    const prev3 = [2020,2021,2022].reduce((s,y)=>s+(yearly[y]||0),0) / 3 || 0.5;
+    const accel = (recent3 - prev3) / prev3 * 100;
+    const pctRecent = total > 0 ? p3/total*100 : 0;
+
+    let stage, stageX;
+    if (pctRecent > 70 && accel > 40) { stage = '성장 초기'; stageX = 1.5; }
+    else if (pctRecent > 60 && accel > 10) { stage = '급성장기'; stageX = 2.5; }
+    else if (accel <= 10 && accel > -10) { stage = '성숙기'; stageX = 3.5; }
+    else { stage = '도입기'; stageX = 0.5; }
+
+    return { ...f, total, accel: Math.round(accel), stage, stageX, yearly };
+  });
+
+  // Bubble chart: X = maturity stage, Y = acceleration, R = total papers
+  const maxTotal = Math.max(...fieldData.map(d=>d.total));
+  new Chart(document.getElementById('maturityChart'), {
+    type: 'bubble',
+    data: {
+      datasets: fieldData.map(d => ({
+        label: `${d.name} (${d.stage})`,
+        data: [{ x: d.stageX, y: d.accel, r: Math.max(10, d.total / maxTotal * 45) }],
+        backgroundColor: d.color + '88',
+        borderColor: d.color,
+        borderWidth: 2
+      }))
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { labels: { color: '#cbd5e1', font:{size:11} }},
+        tooltip: {
+          callbacks: {
+            label: (ctx) => {
+              const d = fieldData[ctx.datasetIndex];
+              return [`${d.name}: ${d.stage}`, `총 논문: ${d.total}편`, `최근 가속도: ${d.accel>0?'+':''}${d.accel}%`];
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          min: 0, max: 4,
+          ticks: {
+            color: '#94a3b8',
+            callback: v => ['','도입기','급성장기','성숙기','쇠퇴기'][Math.round(v)] || ''
+          },
+          grid: { color: '#1e293b' },
+          title: { display: true, text: '기술 성숙도 단계 →', color: '#94a3b8' }
+        },
+        y: {
+          ticks: { color: '#94a3b8', callback: v => v + '%' },
+          grid: { color: '#1e293b' },
+          title: { display: true, text: '최근 성장 가속도 (%)', color: '#94a3b8' }
+        }
+      }
+    }
+  });
+}
+
+function createGapHeatmap() {
+  const fieldNames = ['상지 재활','하지/보행','BCI/뇌신경','소프트 로봇','외골격','AI/ML'];
+  const disNames = ['뇌졸중','척수손상','뇌성마비','파킨슨','외상성 뇌손상','절단/의수족'];
+  const fieldBits = [0,1,2,3,4,5];
+  const disBits = [0,1,2,3,4,5];
+
+  // Count field × disability
+  const matrix = fieldBits.map(() => disBits.map(() => 0));
+  _papersData.forEach(p => {
+    const fb = p[2], db = p[3];
+    fieldBits.forEach((fbit, fi) => {
+      if (fb & (1 << fbit)) {
+        disBits.forEach((dbit, di) => {
+          if (db & (1 << dbit)) {
+            matrix[fi][di]++;
+          }
+        });
+      }
+    });
+  });
+
+  const maxVal = Math.max(...matrix.flat());
+
+  // Build data points for Chart.js matrix-like using scatter
+  const ctx = document.getElementById('gapHeatmap').getContext('2d');
+  const cellW = 100, cellH = 42;
+  const padL = 100, padT = 36, padB = 10, padR = 20;
+  const w = padL + disNames.length * cellW + padR;
+  const h = padT + fieldNames.length * cellH + padB;
+  const canvas = document.getElementById('gapHeatmap');
+  canvas.width = w * 2; canvas.height = h * 2;
+  canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
+  ctx.scale(2, 2);
+
+  // Color scale: high=green, low=red/orange (opportunity)
+  function getColor(val) {
+    const ratio = val / maxVal;
+    if (ratio > 0.4) return '#166534'; // dark green — well studied
+    if (ratio > 0.2) return '#15803d';
+    if (ratio > 0.1) return '#a16207'; // yellow — moderate
+    if (ratio > 0.05) return '#c2410c'; // orange — gap
+    return '#dc2626'; // red — big gap/opportunity
+  }
+
+  function getLabel(val) {
+    const ratio = val / maxVal;
+    if (ratio > 0.4) return '';
+    if (ratio > 0.2) return '';
+    if (ratio > 0.1) return '관심 필요';
+    if (ratio > 0.05) return '연구 기회';
+    return '미개척 영역';
+  }
+
+  // Draw header
+  ctx.fillStyle = '#94a3b8'; ctx.font = '12px sans-serif'; ctx.textAlign = 'center';
+  disNames.forEach((d, di) => {
+    ctx.fillText(d, padL + di * cellW + cellW/2, padT - 10);
+  });
+  ctx.textAlign = 'right';
+  fieldNames.forEach((f, fi) => {
+    ctx.fillText(f, padL - 10, padT + fi * cellH + cellH/2 + 4);
+  });
+
+  // Draw cells
+  fieldNames.forEach((f, fi) => {
+    disNames.forEach((d, di) => {
+      const val = matrix[fi][di];
+      const x = padL + di * cellW, y = padT + fi * cellH;
+      ctx.fillStyle = getColor(val);
+      ctx.fillRect(x+2, y+2, cellW-4, cellH-4);
+      // Number
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 14px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText(val + '편', x + cellW/2, y + cellH/2 - 2);
+      // Label
+      const lbl = getLabel(val);
+      if (lbl) {
+        ctx.fillStyle = '#fbbf24'; ctx.font = '10px sans-serif';
+        ctx.fillText(lbl, x + cellW/2, y + cellH/2 + 12);
+      }
+    });
+  });
+
+  // Legend
+  const legendY = padT + fieldNames.length * cellH + 4;
+  const legendItems = [
+    {color:'#dc2626', text:'미개척 (<5%)'},
+    {color:'#c2410c', text:'연구 기회 (5-10%)'},
+    {color:'#a16207', text:'관심 필요 (10-20%)'},
+    {color:'#15803d', text:'활발 (20-40%)'},
+    {color:'#166534', text:'집중 연구 (>40%)'}
+  ];
+
+  // Insight text
+  const gaps = [];
+  fieldNames.forEach((f, fi) => {
+    disNames.forEach((d, di) => {
+      const ratio = matrix[fi][di] / maxVal;
+      if (ratio < 0.05 && matrix[fi][di] > 0) gaps.push(`${f}×${d}(${matrix[fi][di]}편)`);
+      else if (matrix[fi][di] === 0) gaps.push(`${f}×${d}(0편)`);
+    });
+  });
+  const insightEl = document.getElementById('gapInsight');
+  if (insightEl) {
+    insightEl.innerHTML = '<strong style="color:#fb923c;">미개척 연구 기회:</strong> ' +
+      gaps.slice(0,8).join(', ') +
+      ' 등 — 이 조합은 향후 혁신적 연구 기회로, 선점 효과가 기대됩니다.';
+  }
+}
+
+// =============== INIT ===============
 window.addEventListener('DOMContentLoaded', () => {
   createYearlyChart();
   createCountryChart();
@@ -1706,6 +2080,11 @@ window.addEventListener('DOMContentLoaded', () => {
   document.getElementById('yearDisplay').textContent = '2026';
   document.getElementById('eraLabel').textContent = getEraLabel(2026);
   createNetwork();
+  // Future Research Roadmap
+  try { createTrendProjectionChart(); } catch(e) { console.error('TrendProjection error:', e); }
+  try { renderEmergingDecliningTables(); } catch(e) { console.error('EmergingDeclining error:', e); }
+  try { createMaturityChart(); } catch(e) { console.error('Maturity error:', e); }
+  try { createGapHeatmap(); } catch(e) { console.error('GapHeatmap error:', e); }
 });
 
 window.addEventListener('resize', () => { if(simulation) { simulation.stop(); } createNetwork(); });
