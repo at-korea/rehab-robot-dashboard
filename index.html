@@ -533,6 +533,32 @@
     <p id="gapInsight" style="margin:12px 0 0;color:#94a3b8;font-size:13px;line-height:1.6;"></p>
   </div>
 
+  <!-- R5. AI 세부분류 분석 -->
+  <div class="card full">
+    <h3><span class="dot" style="background:#fbbf24"></span>AI 기술 세부분류 분석 (AI Subcategory Breakdown)</h3>
+    <div class="tab-nav">
+      <button class="tab-btn active" onclick="switchTab('aiSub','chart')">연도별 추이 차트</button>
+      <button class="tab-btn" onclick="switchTab('aiSub','table')">전체 현황 테이블</button>
+      <button class="tab-btn" onclick="switchTab('aiSub','bubble')">성장률 버블맵</button>
+    </div>
+    <div id="aiSub-chart" class="tab-content active">
+      <div class="chart-container" style="height:380px">
+        <canvas id="aiSubTrendChart"></canvas>
+      </div>
+    </div>
+    <div id="aiSub-table" class="tab-content">
+      <table class="data-table">
+        <thead><tr><th>#</th><th>AI 기술</th><th>총 논문</th><th>최근 4년</th><th>성장률</th><th>전망</th></tr></thead>
+        <tbody id="aiSubTable"></tbody>
+      </table>
+    </div>
+    <div id="aiSub-bubble" class="tab-content">
+      <div class="chart-container" style="height:380px">
+        <canvas id="aiSubBubbleChart"></canvas>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <div class="source-note">
@@ -2058,6 +2084,101 @@ function createGapHeatmap() {
   }
 }
 
+// =============== AI SUBCATEGORY DATA & CHARTS ===============
+const _aiSubcats = [{"name":"신경망 (Neural Network)","total":221,"recent":127,"growth":131,"yearly":[2,5,7,2,16,11,26,30,25,32,40]},{"name":"딥러닝 (Deep Learning)","total":178,"recent":127,"growth":285,"yearly":[2,1,2,3,8,6,16,17,24,34,52]},{"name":"컴퓨터 비전 (Computer Vision)","total":167,"recent":79,"growth":61,"yearly":[1,8,10,10,12,14,13,19,16,17,27]},{"name":"생체신호 AI (EMG/EEG)","total":165,"recent":67,"growth":34,"yearly":[5,12,20,6,15,10,19,11,16,16,24]},{"name":"예측 모델 (Regression)","total":121,"recent":47,"growth":4,"yearly":[0,3,4,6,8,17,14,7,13,8,19]},{"name":"SVM/전통 ML","total":107,"recent":59,"growth":84,"yearly":[1,4,2,5,9,6,12,13,11,16,19]},{"name":"적응형 학습 (Adaptive)","total":81,"recent":36,"growth":112,"yearly":[1,3,6,5,2,2,8,6,5,7,18]},{"name":"군집화 (Clustering)","total":60,"recent":26,"growth":53,"yearly":[2,2,3,6,3,3,5,2,4,5,15]},{"name":"NLP/LLM","total":42,"recent":22,"growth":214,"yearly":[1,3,2,1,2,2,2,6,5,6,5]},{"name":"퍼지 논리 (Fuzzy)","total":40,"recent":18,"growth":125,"yearly":[3,0,4,1,1,2,4,4,1,5,8]},{"name":"전이학습 (Transfer)","total":29,"recent":22,"growth":267,"yearly":[1,0,0,1,1,1,3,2,5,7,8]},{"name":"디지털 트윈 (Digital Twin)","total":27,"recent":20,"growth":400,"yearly":[0,0,0,0,2,0,2,4,4,2,10]},{"name":"강화학습 (RL)","total":25,"recent":14,"growth":1300,"yearly":[1,2,3,0,0,0,1,2,2,5,5]},{"name":"설명가능 AI (XAI)","total":12,"recent":10,"growth":2000,"yearly":[1,0,0,0,0,0,0,1,2,3,4]},{"name":"생성형 AI (Generative)","total":4,"recent":2,"growth":100,"yearly":[0,0,1,0,1,0,0,0,0,0,2]},{"name":"Federated/Edge AI","total":4,"recent":3,"growth":200,"yearly":[0,0,0,0,0,1,0,0,0,1,2]}];
+
+const _aiColors = ['#38bdf8','#818cf8','#34d399','#f472b6','#fbbf24','#fb923c','#a78bfa','#2dd4bf','#f87171','#e879f9','#facc15','#4ade80','#60a5fa','#c084fc','#f97316','#94a3b8'];
+
+function createAiSubTrendChart() {
+  const years = [];
+  for (let y=2015; y<=2025; y++) years.push(y);
+  // Show top 8 by total
+  const top8 = _aiSubcats.slice(0, 8);
+  const datasets = top8.map((cat, i) => ({
+    label: cat.name,
+    data: cat.yearly,
+    borderColor: _aiColors[i],
+    backgroundColor: _aiColors[i] + '20',
+    borderWidth: 2.5,
+    pointRadius: 2,
+    tension: 0.3,
+    fill: false
+  }));
+  new Chart(document.getElementById('aiSubTrendChart'), {
+    type: 'line',
+    data: { labels: years, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color:'#cbd5e1', font:{size:11} }}},
+      scales: {
+        x: { ticks:{color:'#94a3b8'}, grid:{color:'#1e293b'} },
+        y: { ticks:{color:'#94a3b8'}, grid:{color:'#1e293b'}, title:{display:true, text:'논문 수', color:'#94a3b8'} }
+      }
+    }
+  });
+}
+
+function renderAiSubTable() {
+  const tbody = document.getElementById('aiSubTable');
+  _aiSubcats.forEach((cat, i) => {
+    const tr = document.createElement('tr');
+    const gVal = cat.growth;
+    let gColor = '#34d399', gIcon = '↑';
+    if (gVal > 200) { gColor = '#f87171'; gIcon = '↑↑↑'; }
+    else if (gVal > 100) { gColor = '#fbbf24'; gIcon = '↑↑'; }
+    else if (gVal > 30) { gColor = '#34d399'; gIcon = '↑'; }
+    else if (gVal > -10) { gColor = '#94a3b8'; gIcon = '→'; }
+    else { gColor = '#f87171'; gIcon = '↓'; }
+
+    let prospect = '안정';
+    if (gVal > 200) prospect = '폭발적 성장';
+    else if (gVal > 100) prospect = '급성장';
+    else if (gVal > 30) prospect = '성장세';
+    else if (gVal > -10) prospect = '안정';
+    else prospect = '쇠퇴';
+
+    const pColor = gVal > 200 ? '#f87171' : gVal > 100 ? '#fbbf24' : gVal > 30 ? '#34d399' : '#94a3b8';
+    tr.innerHTML = '<td>' + (i+1) + '</td><td><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' + _aiColors[i] + ';margin-right:6px;vertical-align:middle;"></span>' + cat.name + '</td><td>' + cat.total + '</td><td>' + cat.recent + '</td><td style="color:' + gColor + ';font-weight:600;">' + (gVal>0?'+':'') + gVal + '% ' + gIcon + '</td><td style="color:' + pColor + ';font-weight:600;">' + prospect + '</td>';
+    tbody.appendChild(tr);
+  });
+}
+
+function createAiSubBubbleChart() {
+  const datasets = _aiSubcats.map((cat, i) => {
+    const maxTotal = Math.max(..._aiSubcats.map(c=>c.total));
+    const cappedGrowth = Math.min(cat.growth, 500);
+    return {
+      label: cat.name,
+      data: [{ x: cat.total, y: cappedGrowth, r: Math.max(6, cat.recent / 127 * 30) }],
+      backgroundColor: _aiColors[i] + '88',
+      borderColor: _aiColors[i],
+      borderWidth: 2
+    };
+  });
+  new Chart(document.getElementById('aiSubBubbleChart'), {
+    type: 'bubble',
+    data: { datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { labels: { color:'#cbd5e1', font:{size:10} }},
+        tooltip: {
+          callbacks: {
+            label: (ctx) => {
+              const c = _aiSubcats[ctx.datasetIndex];
+              return [c.name, '총 ' + c.total + '편 | 최근 ' + c.recent + '편', '성장률: ' + (c.growth>0?'+':'') + c.growth + '%'];
+            }
+          }
+        }
+      },
+      scales: {
+        x: { ticks:{color:'#94a3b8'}, grid:{color:'#1e293b'}, title:{display:true, text:'총 논문 수 →', color:'#94a3b8'} },
+        y: { ticks:{color:'#94a3b8', callback: v=>v+'%'}, grid:{color:'#1e293b'}, title:{display:true, text:'성장률 (%, 최대 500%) →', color:'#94a3b8'}, max:550 }
+      }
+    }
+  });
+}
+
 // =============== INIT ===============
 window.addEventListener('DOMContentLoaded', () => {
   createYearlyChart();
@@ -2085,6 +2206,9 @@ window.addEventListener('DOMContentLoaded', () => {
   try { renderEmergingDecliningTables(); } catch(e) { console.error('EmergingDeclining error:', e); }
   try { createMaturityChart(); } catch(e) { console.error('Maturity error:', e); }
   try { createGapHeatmap(); } catch(e) { console.error('GapHeatmap error:', e); }
+  try { createAiSubTrendChart(); } catch(e) { console.error('AiSubTrend error:', e); }
+  try { renderAiSubTable(); } catch(e) { console.error('AiSubTable error:', e); }
+  try { createAiSubBubbleChart(); } catch(e) { console.error('AiSubBubble error:', e); }
 });
 
 window.addEventListener('resize', () => { if(simulation) { simulation.stop(); } createNetwork(); });
